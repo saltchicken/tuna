@@ -24,7 +24,7 @@ fourbit_models = [
 ] # More models at https://huggingface.co/unsloth
 
 class Trainer():
-    def __init__():
+    def __init__(self):
         self.max_seq_length = 2048
         self.dtype = None
         self.load_in_4bit = True
@@ -145,7 +145,7 @@ class Trainer():
         # quantization_method = ["q4_k_m", "q8_0", "q5_k_m",],
 
 class Model():
-    def __init__():
+    def __init__(self):
         # TODO: These three are duplicated with trainer
         self.max_seq_length = 2048
         self.dtype = None
@@ -173,7 +173,7 @@ class Model():
         _ = self.model.generate(input_ids, streamer = text_streamer, max_new_tokens = 128, pad_token_id = self.tokenizer.eos_token_id)
 
 class TestAutoModel():
-    def __init__():
+    def __init__(self):
         from peft import AutoPeftModelForCausalLM
         from transformers import AutoTokenizer
         self.load_in_4bit = True
@@ -208,6 +208,7 @@ if __name__ == "__main__":
     trainer_stats = trainer.trainer.train()
     trainer.run_inference()
     trainer.save_lora()
+    trainer.save_model()
 
     if False:
         lora_model = Model()
