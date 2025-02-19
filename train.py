@@ -23,26 +23,26 @@ fourbit_models = [
     "unsloth/gemma-7b-bnb-4bit",             # Gemma 2.2x faster!
 ] # More models at https://huggingface.co/unsloth
 
-class Trainer():
-    def __init__(self):
-        self.max_seq_length = 2048
-        self.dtype = None
-        self.load_in_4bit = True
-        self.model = None
-        self.tokenizer = None
-        self.dataset = None
-        self.chat_template = None
-        self.trainer = None
-
-    def load_base_model(self):
+class Model():
+    def __init__(self, model_name, inference=False, max_seq_length=2048, dtype=None, load_in_4bit=True):
+        self.model_name = model_name
+        self.inference = False
+        self.max_seq_length = max_seq_length
+        self.dtype = dtype
+        self.load_in_4bit = load_in_4bit
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-            model_name = "unsloth/llama-3-8b-bnb-4bit",
+            model_name = self.model_name,
             max_seq_length = self.max_seq_length,
             dtype = self.dtype,
             load_in_4bit = self.load_in_4bit,
             # token = "hf_...", # use one if using gated models like meta-llama/Llama-2-7b-hf
         )
-    def convert_base_model_to_FLM(self):
+        if inference:
+            self.set_model_for_inference()
+        else:
+            print(f"Loaded {self.model_name} for training")
+
+    def model_to_peft_model(self):
         self.model = FastLanguageModel.get_peft_model(
             self.model,
             r = 16, # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
@@ -58,10 +58,60 @@ class Trainer():
             loftq_config = None, # And LoftQ
         )
 
-    def load_data(self):
-        self.dataset = load_dataset("vicgalle/alpaca-gpt4", split="train")
+    def set_model_for_inference(self):
+        if not self.inference:
+            self.inference = True
+            FastLanguageModel.for_inference(self.model)
+            print(f"{self.model_name} set for inference")
+        else:
+            print("Model already set for inference")
 
-    def convert_dataset_to_sharegpt(self):
+    def run_inference(self, content):
+        if not self.inference:
+            print(f"Model not loaded for inference")
+            return
+        messages = [                    # Change below!
+            {"role": "user", "content": content},
+        ]
+        input_ids = self.tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt = True,
+            return_tensors = "pt",
+        ).to("cuda")
+
+        text_streamer = TextStreamer(self.tokenizer, skip_prompt = True)
+        _ = self.model.generate(input_ids, streamer = text_streamer, max_new_tokens = 128, pad_token_id = self.tokenizer.eos_token_id)
+
+    def save_lora(self, lora_name):
+        self.model.save_pretrained(lora_name)
+        self.tokenizer.save_pretrained(lora_name)
+
+    def save_model(self, model_name):
+        # Save to 8bit Q8_0
+        if True: self.model.save_pretrained_gguf(model_name, self.tokenizer,)
+
+        # Save to 16bit GGUF
+        if False: self.model.save_pretrained_gguf(model_name, self.tokenizer, quantization_method = "f16")
+
+        # Save to q4_k_m GGUF
+        if False: self.model.save_pretrained_gguf(model_name, self.tokenizer, quantization_method = "q4_k_m")
+
+        # quantization_method = ["q4_k_m", "q8_0", "q5_k_m",],
+
+
+class Trainer():
+    def __init__(self):
+        self.dataset = None
+        self.chat_template = None
+        self.trainer = None
+
+    def load_data(self, data_path):
+        if data_path.endswith("jsonl"):
+            self.dataset = load_dataset("json", data_files=data_path, split="train")
+        else:
+            self.dataset = load_dataset(data_path, split="train")
+
+    def convert_dataset_to_sharegpt(self, conversation_extension=3):
         self.dataset = to_sharegpt(
             self.dataset,
             merged_prompt="{instruction}[[\nYour input is:\n{input}]]",
@@ -71,7 +121,7 @@ class Trainer():
     def standardize_dataset(self):
         self.dataset = standardize_sharegpt(self.dataset)
 
-    def set_chat_template(self):
+    def set_chat_template(self, model):
         self.chat_template = """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.
 
         ### Instruction:
@@ -83,24 +133,24 @@ class Trainer():
 
         self.dataset = apply_chat_template(
             self.dataset,
-            tokenizer=self.tokenizer,
+            tokenizer=model.tokenizer,
             chat_template=self.chat_template,
             # default_system_message = "You are a helpful assistant", << [OPTIONAL]
         )
-    def create_trainer(self):
+    def create_trainer(self, model, max_steps=60):
         self.trainer = SFTTrainer(
-            model = self.model,
-            tokenizer = self.tokenizer,
+            model = model.model,
+            tokenizer = model.tokenizer,
             train_dataset = self.dataset,
             dataset_text_field = "text",
-            max_seq_length = self.max_seq_length,
+            max_seq_length = model.max_seq_length,
             dataset_num_proc = 2,
             packing = False, # Can make training 5x faster for short sequences.
             args = TrainingArguments(
                 per_device_train_batch_size = 2,
                 gradient_accumulation_steps = 4,
                 warmup_steps = 5,
-                max_steps = 60,
+                max_steps = max_steps,
                 # num_train_epochs = 1, # For longer training runs!
                 learning_rate = 2e-4,
                 fp16 = not is_bfloat16_supported(),
@@ -114,44 +164,15 @@ class Trainer():
                 report_to = "none", # Use this for WandB etc
             ),
         )
-    def run_inference(self):
-        FastLanguageModel.for_inference(self.model) # Enable native 2x faster inference
-        messages = [                    # Change below!
-            {"role": "user", "content": "Continue the fibonacci sequence! Your input is 1, 1, 2, 3, 5, 8,"},
-        ]
-        input_ids = self.tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt = True,
-            return_tensors = "pt",
-        ).to("cuda")
 
-        text_streamer = TextStreamer(self.tokenizer, skip_prompt = True)
-        _ = self.model.generate(input_ids, streamer = text_streamer, max_new_tokens = 128, pad_token_id = self.tokenizer.eos_token_id)
-
-    def save_lora(self):
-        self.model.save_pretrained("lora_model")
-        self.tokenizer.save_pretrained("lora_model")
-
-    def save_model(self):
-        # Save to 8bit Q8_0
-        if True: self.model.save_pretrained_gguf("model", self.tokenizer,)
-
-        # Save to 16bit GGUF
-        if False: self.model.save_pretrained_gguf("model", self.tokenizer, quantization_method = "f16")
-
-        # Save to q4_k_m GGUF
-        if False: self.model.save_pretrained_gguf("model", self.tokenizer, quantization_method = "q4_k_m")
-
-        # quantization_method = ["q4_k_m", "q8_0", "q5_k_m",],
-
-class Model():
-    def __init__(self):
+class TestModel():
+    def __init__(self, model_name):
         # TODO: These three are duplicated with trainer
         self.max_seq_length = 2048
         self.dtype = None
         self.load_in_4bit = True
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-            model_name = "lora_model", # YOUR MODEL YOU USED FOR TRAINING
+            model_name = model_name, # YOUR MODEL YOU USED FOR TRAINING
             max_seq_length = self.max_seq_length,
             dtype = self.dtype,
             load_in_4bit = self.load_in_4bit,
@@ -175,7 +196,7 @@ class Model():
 class TestAutoModel():
     def __init__(self):
         from peft import AutoPeftModelForCausalLM
-        from transformers import AutoTokenizer
+        from transformers import model_namer
         self.load_in_4bit = True
         self.model = AutoPeftModelForCausalLM.from_pretrained(
             "lora_model", # YOUR MODEL YOU USED FOR TRAINING
@@ -197,21 +218,21 @@ class TestAutoModel():
         _ = self.model.generate(input_ids, streamer = text_streamer, max_new_tokens = 128, pad_token_id = self.tokenizer.eos_token_id)
 
 if __name__ == "__main__":
+    model = Model(model_name = "unsloth/llama-3-8b-bnb-4bit", inference = False)
+    model.model_to_peft_model()
     trainer = Trainer()
-    trainer.load_base_model()
-    trainer.convert_base_model_to_FLM()
-    trainer.load_data()
-    trainer.convert_dataset_to_sharegpt()
+    trainer.load_data("vicgalle/alpaca-gpt4")
+    trainer.convert_dataset_to_sharegpt(conversation_extension=3)
     trainer.standardize_dataset()
-    trainer.set_chat_template()
-    trainer.create_trainer()
+    trainer.set_chat_template(model)
+    trainer.create_trainer(model, max_steps=60)
     trainer_stats = trainer.trainer.train()
-    trainer.run_inference()
-    trainer.save_lora()
-    trainer.save_model()
+    # trainer.run_inference()
+    model.save_lora("TEST_LORA")
+    model.save_model("TEST_MODEL")
 
     if False:
-        lora_model = Model()
+        lora_model = TestModel()
 
     if False:
         test = TestAutoModel()
