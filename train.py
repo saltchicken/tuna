@@ -6,8 +6,14 @@ from unsloth import standardize_sharegpt
 from unsloth import apply_chat_template
 from trl import SFTTrainer
 from transformers import TrainingArguments
+import requests
+import json
 from unsloth import is_bfloat16_supported
 from transformers import TextStreamer
+import argparse
+from datetime import datetime
+def generate_timestamp_name():
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 # 4bit pre quantized models we support for 4x faster downloading + no OOMs.
@@ -217,26 +223,96 @@ class TestAutoModel():
         text_streamer = TextStreamer(self.tokenizer, skip_prompt = True)
         _ = self.model.generate(input_ids, streamer = text_streamer, max_new_tokens = 128, pad_token_id = self.tokenizer.eos_token_id)
 
-if __name__ == "__main__":
-    model = Model(model_name = "unsloth/llama-3-8b-bnb-4bit", inference = False)
+def run_dataset(model_name, max_steps, dataset, output, conversation_extension):
+    model = Model(model_name = model_name, inference = False)
     model.model_to_peft_model()
     trainer = Trainer()
-    trainer.load_data("vicgalle/alpaca-gpt4")
+    trainer.load_data(dataset)
     trainer.convert_dataset_to_sharegpt(conversation_extension=3)
     trainer.standardize_dataset()
     trainer.set_chat_template(model)
-    trainer.create_trainer(model, max_steps=60)
+    trainer.create_trainer(model, max_steps=max_steps)
     trainer_stats = trainer.trainer.train()
     # trainer.run_inference()
-    model.save_lora("TEST_LORA")
-    model.save_model("TEST_MODEL")
+    if not output:
+        output = generate_timestamp_name()
+    model.save_lora(output + "_lora")
+    model_output_name = output + "_model"
+    model.save_model(model_output_name)
+    print("Deleting training model and trainer")
+    del model
+    del trainer
+    ollama_interaction(model_output_name + "/Modelfile")
 
-    if False:
-        lora_model = TestModel()
-
-    if False:
-        test = TestAutoModel()
+def ollama_interaction(model_file):
+    import subprocess
+    subprocess.run(["ollama", "create", "test", "-f", model_file], check=True)
 
 
+    print("Ollama is running. Type /bye to exit.")
+    while True:
+        user_input = input(">> ")
+        if user_input.strip().lower() == "/bye":
+            break
+        # query = query_ollama("test", user_input)
+        # print(query)
+        stream_ollama("test", user_input)
 
+    subprocess.run(["ollama", "rm", "test"], check=True)
+
+    print("Ollama session ended. Continuing with the script...")
+
+def stream_ollama(model, prompt):
+    url = "http://localhost:11434/api/generate"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "model": model,
+        "prompt": prompt,
+        "stream": True
+    }
+
+    with requests.post(url, headers=headers, data=json.dumps(data), stream=True) as response:
+        for line in response.iter_lines():
+            if line:
+                print(json.loads(line)["response"], end="", flush=True)
+        print("\n")
+
+def query_ollama(model, prompt):
+    url = "http://localhost:11434/api/generate"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False
+    }
+
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+
+    if response.status_code == 200:
+        return response.json()["response"]
+    else:
+        return f"Error: {response.status_code}, {response.text}"
+
+# Example usage
+# model_name = "mistral"  # Change this to the model you have installed
+# prompt_text = "Tell me a joke."
+# response = query_ollama(model_name, prompt_text)
+# print(response)
+
+
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run training")
+    parser.add_argument("--model", type=str, default="unsloth/llama-3-8b-bnb-4bit", help="Model name to use for training. Default is model_name='unsloth/llama-3-8b-bnb-4bit'")
+    parser.add_argument("--max_steps", type=int, default=30, help="Max training steps. Default is max_steps=30")
+    parser.add_argument("--dataset", type=str, default="vicgalle/alpaca-gpt4", help="Dataset to use for training. Default is dataset='vicgalle/alpaca-gpt4'")
+    parser.add_argument("--output", default=None, help="Output file to save model to. Default is None")
+    parser.add_argument("--conversation_extension", default=3, type=int, help="Conversation extension. Default is 3")
+    args = parser.parse_args()
+
+    run_dataset(args.model, args.max_steps, args.dataset, args.output, args.conversation_extension)
+
+if __name__ == "__main__":
+    main()
 
