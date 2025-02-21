@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tuna"
+version = "0.1.1"
+dependencies = [
+]
+
+[project.scripts]
+tuna = "tuna.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
