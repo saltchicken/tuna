@@ -1,10 +1,11 @@
+import gc
 from unsloth import FastLanguageModel
 import torch
 from datasets import load_dataset
 from unsloth import to_sharegpt
 from unsloth import standardize_sharegpt
 from unsloth import apply_chat_template
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
 from transformers import TrainingArguments
 import requests
 import json
@@ -143,7 +144,29 @@ class Trainer():
             chat_template=self.chat_template,
             # default_system_message = "You are a helpful assistant", << [OPTIONAL]
         )
-    def create_trainer(self, model, max_steps=60):
+    def create_trainer(self, model, max_steps=60, num_train_epochs=None):
+        training_args = SFTConfig(
+            per_device_train_batch_size = 2,
+            gradient_accumulation_steps = 4,
+            warmup_steps = 5,
+            max_steps = max_steps,
+            # num_train_epochs = 1, # For longer training runs!
+            learning_rate = 2e-4,
+            fp16 = not is_bfloat16_supported(),
+            bf16 = is_bfloat16_supported(),
+            logging_steps = 1,
+            optim = "adamw_8bit",
+            weight_decay = 0.01,
+            lr_scheduler_type = "linear",
+            seed = 3407,
+            output_dir = "outputs",
+            report_to = "none", # Use this for WandB etc
+        )
+        if num_train_epochs:
+            print(f"Setting num_train_epochs to {num_train_epochs}")
+            training_args.max_steps = -1
+            training_args.num_train_epochs = num_train_epochs
+
         self.trainer = SFTTrainer(
             model = model.model,
             tokenizer = model.tokenizer,
@@ -152,78 +175,11 @@ class Trainer():
             max_seq_length = model.max_seq_length,
             dataset_num_proc = 2,
             packing = False, # Can make training 5x faster for short sequences.
-            args = TrainingArguments(
-                per_device_train_batch_size = 2,
-                gradient_accumulation_steps = 4,
-                warmup_steps = 5,
-                max_steps = max_steps,
-                # num_train_epochs = 1, # For longer training runs!
-                learning_rate = 2e-4,
-                fp16 = not is_bfloat16_supported(),
-                bf16 = is_bfloat16_supported(),
-                logging_steps = 1,
-                optim = "adamw_8bit",
-                weight_decay = 0.01,
-                lr_scheduler_type = "linear",
-                seed = 3407,
-                output_dir = "outputs",
-                report_to = "none", # Use this for WandB etc
-            ),
+            args = training_args,
         )
 
-class TestModel():
-    def __init__(self, model_name):
-        # TODO: These three are duplicated with trainer
-        self.max_seq_length = 2048
-        self.dtype = None
-        self.load_in_4bit = True
-        self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-            model_name = model_name, # YOUR MODEL YOU USED FOR TRAINING
-            max_seq_length = self.max_seq_length,
-            dtype = self.dtype,
-            load_in_4bit = self.load_in_4bit,
-        )
-        FastLanguageModel.for_inference(self.model) # Enable native 2x faster inference
 
-        #TODO: This is duplicated from tainers run_inference
-
-        messages = [                    # Change below!
-            {"role": "user", "content": "Describe anything special about a sequence. Your input is 1, 1, 2, 3, 5, 8,"},
-        ]
-        input_ids = self.tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt = True,
-            return_tensors = "pt",
-        ).to("cuda")
-
-        text_streamer = TextStreamer(self.tokenizer, skip_prompt = True)
-        _ = self.model.generate(input_ids, streamer = text_streamer, max_new_tokens = 128, pad_token_id = self.tokenizer.eos_token_id)
-
-class TestAutoModel():
-    def __init__(self):
-        from peft import AutoPeftModelForCausalLM
-        from transformers import model_namer
-        self.load_in_4bit = True
-        self.model = AutoPeftModelForCausalLM.from_pretrained(
-            "lora_model", # YOUR MODEL YOU USED FOR TRAINING
-            load_in_4bit = self.load_in_4bit,
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained("lora_model")
-                #TODO: This is duplicated from tainers run_inference
-
-        messages = [                    # Change below!
-            {"role": "user", "content": "Describe anything special about a sequence. Your input is 1, 1, 2, 3, 5, 8,"},
-        ]
-        input_ids = self.tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt = True,
-            return_tensors = "pt",
-        ).to("cuda")
-
-        text_streamer = TextStreamer(self.tokenizer, skip_prompt = True)
-        _ = self.model.generate(input_ids, streamer = text_streamer, max_new_tokens = 128, pad_token_id = self.tokenizer.eos_token_id)
-
-def run_dataset(model_name, max_steps, dataset, output, conversation_extension):
+def run_dataset(model_name, max_steps, dataset, output, conversation_extension, num_train_epochs):
     model = Model(model_name = model_name, inference = False)
     model.model_to_peft_model()
     trainer = Trainer()
@@ -231,7 +187,7 @@ def run_dataset(model_name, max_steps, dataset, output, conversation_extension):
     trainer.convert_dataset_to_sharegpt(conversation_extension=3)
     trainer.standardize_dataset()
     trainer.set_chat_template(model)
-    trainer.create_trainer(model, max_steps=max_steps)
+    trainer.create_trainer(model, max_steps=max_steps, num_train_epochs=num_train_epochs)
     trainer_stats = trainer.trainer.train()
     # trainer.run_inference()
     if not output:
@@ -242,7 +198,8 @@ def run_dataset(model_name, max_steps, dataset, output, conversation_extension):
     print("Deleting training model and trainer")
     del model
     del trainer
-    ollama_interaction(model_output_name + "/Modelfile")
+    gc.collect()
+    return model_output_name
 
 def ollama_interaction(model_file):
     import subprocess
@@ -309,9 +266,13 @@ def main():
     parser.add_argument("--dataset", type=str, default="vicgalle/alpaca-gpt4", help="Dataset to use for training. Default is dataset='vicgalle/alpaca-gpt4'")
     parser.add_argument("--output", default=None, help="Output file to save model to. Default is None")
     parser.add_argument("--conversation_extension", default=3, type=int, help="Conversation extension. Default is 3")
+    parser.add_argument("--num_train_epochs", default=None, type=int, help="Number of training epochs. Default is None")
+    parser.add_argument("--ollama", action="store_true", help="Run Ollama to interact with the model. Default is False")
     args = parser.parse_args()
 
-    run_dataset(args.model, args.max_steps, args.dataset, args.output, args.conversation_extension)
+    output_model_name = run_dataset(args.model, args.max_steps, args.dataset, args.output, args.conversation_extension, args.num_train_epochs)
+    if args.ollama:
+        ollama_interaction(output_model_name)
 
 if __name__ == "__main__":
     main()
