@@ -1,4 +1,3 @@
-import gc
 from unsloth import FastLanguageModel
 import torch
 from datasets import load_dataset
@@ -10,9 +9,6 @@ from transformers import TrainingArguments
 import json
 from unsloth import is_bfloat16_supported
 from transformers import TextStreamer
-from datetime import datetime
-def generate_timestamp_name():
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 PAD_TOKEN = "<|pad|>"
 
