@@ -272,7 +272,7 @@ def main():
 
     output_model_name = run_dataset(args.model, args.max_steps, args.dataset, args.output, args.conversation_extension, args.num_train_epochs)
     if args.ollama:
-        ollama_interaction(output_model_name)
+        ollama_interaction(output_model_name + "/Modelfile")
 
 if __name__ == "__main__":
     main()
