@@ -60,6 +60,23 @@ class Model():
             loftq_config = None, # And LoftQ
         )
 
+    def set_chat_template(self):
+        # self.chat_template = """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.
+        #
+        # ### Instruction:
+        # {INPUT}
+        #
+        # ### Response:
+        # {OUTPUT}"""
+
+        self.tokenizer.chat_template = """Use only the information to answer the question.
+
+        ### Instruction:
+        {INPUT}
+
+        ### Response:
+        {OUTPUT}"""
+
     def set_model_for_inference(self):
         if not self.inference:
             self.inference = True
@@ -131,29 +148,15 @@ class Trainer():
     def standardize_dataset(self):
         self.dataset = standardize_sharegpt(self.dataset)
 
-    def set_chat_template(self, model):
-        # self.chat_template = """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.
-        #
-        # ### Instruction:
-        # {INPUT}
-        #
-        # ### Response:
-        # {OUTPUT}"""
 
-        self.chat_template = """Use only the information to answer the question.
-
-        ### Instruction:
-        {INPUT}
-
-        ### Response:
-        {OUTPUT}"""
-
+    def apply_chat_template(self, model):
         self.dataset = apply_chat_template(
             self.dataset,
             tokenizer=model.tokenizer,
-            chat_template=self.chat_template,
+            chat_template=model.tokenizer.chat_template,
             # default_system_message = "You are a helpful assistant", << [OPTIONAL]
         )
+
     def create_trainer(self, model, max_steps=60, num_train_epochs=None):
         training_args = SFTConfig(
             per_device_train_batch_size = 2,
