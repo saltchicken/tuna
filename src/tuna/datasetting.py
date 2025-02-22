@@ -13,8 +13,8 @@ import gc
 
 from sklearn.model_selection import train_test_split
 
-def create_dataset(model):
-    datasetter = Datasetter(model)
+def create_dataset(model, dataset):
+    datasetter = Datasetter(model, dataset)
     del datasetter
     gc.collect()
 
