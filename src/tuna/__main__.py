@@ -2,7 +2,7 @@ import argparse
 from datetime import datetime
 import gc
 from .datasetting import create_dataset
-from .ollama import ollama_interaction
+from .chat import ollama_interaction
 from .train import Model, Trainer
 
 def generate_timestamp_name():
@@ -39,7 +39,7 @@ def main():
     train_parser = subparsers.add_parser("train", help="Train a model")
     train_parser.add_argument("--model", type=str, default="unsloth/llama-3-8b-Instruct-bnb-4bit", help="Model name to use for training. Default is model_name='unsloth/llama-3-8b-bnb-4bit'")
     train_parser.add_argument("--max_steps", type=int, default=30, help="Max training steps. Default is max_steps=30")
-    train_parser.add_argument("--dataset", type=str, default="vicgalle/alpaca-gpt4", help="Dataset to use for training. Default is dataset='vicgalle/alpaca-gpt4'")
+    train_parser.add_argument("--dataset", type=str, default="virattt/financial-qa-10k", help="Dataset to use for training. Default is dataset='vicgalle/alpaca-gpt4'")
     train_parser.add_argument("--output", default=None, help="Output file to save model to. Default is None")
     train_parser.add_argument("--conversation_extension", default=3, type=int, help="Conversation extension. Default is 3")
     train_parser.add_argument("--num_train_epochs", default=None, type=int, help="Number of training epochs. Default is None")

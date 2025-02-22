@@ -26,13 +26,13 @@ class Model():
             load_in_4bit = self.load_in_4bit,
             # token = "hf_...", # use one if using gated models like meta-llama/Llama-2-7b-hf
         )
-        # TODO: Is this pad_token needed. Should a EOS be added
-        ### CUSTOM
-        print("Adding pad_token")
-        self.tokenizer.add_special_tokens({"pad_token": PAD_TOKEN})
-        self.tokenizer.padding_side = "right"
-        self.model.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=8)
-        #########
+        # # TODO: Is this pad_token needed. Should a EOS be added
+        # ### CUSTOM
+        # print("Adding pad_token")
+        # self.tokenizer.add_special_tokens({"pad_token": PAD_TOKEN})
+        # self.tokenizer.padding_side = "right"
+        # self.model.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=8)
+        # #########
 
         if inference:
             self.set_model_for_inference()
@@ -69,7 +69,7 @@ class Model():
         # ### Response:
         # {OUTPUT}"""
 
-        self.tokenizer.chat_template = """Use only the information to answer the question.
+        self.tokenizer.chat_template = """{SYSTEM}
 
         ### Instruction:
         {INPUT}
