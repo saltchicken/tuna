@@ -37,7 +37,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
 
     train_parser = subparsers.add_parser("train", help="Train a model")
-    train_parser.add_argument("--model", type=str, default="unsloth/llama-3-8b-bnb-4bit", help="Model name to use for training. Default is model_name='unsloth/llama-3-8b-bnb-4bit'")
+    train_parser.add_argument("--model", type=str, default="unsloth/llama-3-8b-Instruct-bnb-4bit", help="Model name to use for training. Default is model_name='unsloth/llama-3-8b-bnb-4bit'")
     train_parser.add_argument("--max_steps", type=int, default=30, help="Max training steps. Default is max_steps=30")
     train_parser.add_argument("--dataset", type=str, default="vicgalle/alpaca-gpt4", help="Dataset to use for training. Default is dataset='vicgalle/alpaca-gpt4'")
     train_parser.add_argument("--output", default=None, help="Output file to save model to. Default is None")
@@ -46,8 +46,7 @@ def main():
     train_parser.add_argument("--ollama", action="store_true", help="Run Ollama to interact with the model. Default is False")
 
     dataset_parser = subparsers.add_parser("dataset", help="Run the dataset")
-    # TODO: Change default model to Instruct
-    dataset_parser.add_argument("--model", type=str, default="unsloth/llama-3-8b-bnb-4bit", help="Model name to use for training. Default is model_name='unsloth/llama-3-8b-bnb-4bit'")
+    dataset_parser.add_argument("--model", type=str, default="unsloth/llama-3-8b-Instruct-bnb-4bit", help="Model name to use for training. Default is model_name='unsloth/llama-3-8b-bnb-4bit'")
 
     args = parser.parse_args()
 
