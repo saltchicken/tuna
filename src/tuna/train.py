@@ -109,29 +109,44 @@ class Trainer():
 
     def load_data(self, data_path):
         if data_path.endswith("jsonl"):
-            self.dataset = load_dataset("json", data_files=data_path, split="train")
+            # self.dataset = load_dataset("json", data_files=data_path, split="train")
+            self.dataset = load_dataset("json", data_files={"train": "train.jsonl", "validation": "val.jsonl", "test": "test.jsonl"})
+            self.dataset = self.dataset["train"]
         else:
             self.dataset = load_dataset(data_path, split="train")
 
     def convert_dataset_to_sharegpt(self, conversation_extension=3):
+        # self.dataset = to_sharegpt(
+        #     self.dataset,
+        #     merged_prompt="{instruction}[[\nYour input is:\n{input}]]",
+        #     output_column_name="output",
+        #     conversation_extension=3,  # Select more to handle longer conversations
+        # )
         self.dataset = to_sharegpt(
             self.dataset,
-            merged_prompt="{instruction}[[\nYour input is:\n{input}]]",
-            output_column_name="output",
+            merged_prompt="{question}[[\nInformation:\n{context}]]",
+            output_column_name="answer",
             conversation_extension=3,  # Select more to handle longer conversations
         )
     def standardize_dataset(self):
         self.dataset = standardize_sharegpt(self.dataset)
 
     def set_chat_template(self, model):
-        self.chat_template = """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.
+        # self.chat_template = """Below are some instructions that describe some tasks. Write responses that appropriately complete each request.
+        #
+        # ### Instruction:
+        # {INPUT}
+        #
+        # ### Response:
+        # {OUTPUT}"""
+
+        self.chat_template = """Use only the information to answer the question.
 
         ### Instruction:
         {INPUT}
 
         ### Response:
         {OUTPUT}"""
-
 
         self.dataset = apply_chat_template(
             self.dataset,
@@ -156,6 +171,10 @@ class Trainer():
             seed = 3407,
             output_dir = "outputs",
             report_to = "none", # Use this for WandB etc
+            # dataset_kwargs={
+            #     "add_special_tokens": False,
+            #     "append_concat_token": False,
+            # }
         )
         if num_train_epochs:
             print(f"Setting num_train_epochs to {num_train_epochs}")
@@ -166,6 +185,8 @@ class Trainer():
             model = model.model,
             tokenizer = model.tokenizer,
             train_dataset = self.dataset,
+            # train_dataset = self.dataset["train"],
+            # eval_dataset=self.dataset["validation"],
             dataset_text_field = "text",
             max_seq_length = model.max_seq_length,
             dataset_num_proc = 2,
