@@ -11,6 +11,7 @@ import seaborn as sns
 from matplotlib.ticker import PercentFormatter
 import gc
 import json
+from pathlib import Path
 
 from sklearn.model_selection import train_test_split
 
@@ -20,22 +21,56 @@ def create_dataset(model, dataset):
     gc.collect()
 
 class Datacreator():
-    def __init__(self, dataset_name):
+    def __init__(self, dataset_name, context=False):
         self.filename = dataset_name + ".jsonl"
+        exists = self.check_if_exists()
+        if exists:
+            num_fields = self.check_fields()
+            if num_fields == 2 and context == True:
+                print("Dataset already has only 2 fields and you are trying to input context. Exiting")
+                exit(1)
+            if num_fields == 3 and context == False:
+                print("Dataset already has 3 fields and you are not inputting context. Exiting")
+                exit(1)
+            if num_fields < 2 or num_fields > 3:
+                print("Invalid number of fields. Exitting")
+                exit(1)
         with open(self.filename, "a") as file:
             while True:
                 user_input = input("Input: ")
                 if user_input.lower() == "exit":
                     break
 
+                if context:
+                    user_context = input("Context: ")
+                    if user_context.lower() == "exit":
+                        break
+
+
                 user_output = input("Output: ")
                 if user_output.lower() == "exit":
                     break
 
-                entry = {"input": user_input, "output": user_output}
+                if context:
+                    entry = {"input": user_input, "context": user_context, "output": user_output}
+                else:
+                    entry = {"input": user_input, "output": user_output}
                 file.write(json.dumps(entry) + "\n")
 
         print(f"Data saved to {self.filename}")
+
+    def check_fields(self):
+        dataset = load_dataset('json', data_files=self.filename)
+        print(dataset.column_names)
+        return len(dataset.column_names['train'])
+
+    def check_if_exists(self):
+        file = Path(self.filename)
+        if file.exists():
+            return True
+        else:
+            return False
+
 
 class Datasetter():
     def __init__(self, model, dataset):
