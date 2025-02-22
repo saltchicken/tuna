@@ -1,8 +1,6 @@
 import argparse
 from datetime import datetime
 import gc
-import json
-import requests
 from .datasetting import create_dataset
 from .ollama import ollama_interaction
 from .train import Model, Trainer

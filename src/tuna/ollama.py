@@ -1,3 +1,6 @@
+import json
+import requests
+
 def ollama_interaction(model_file):
     import subprocess
     subprocess.run(["ollama", "create", "test", "-f", model_file], check=True)
