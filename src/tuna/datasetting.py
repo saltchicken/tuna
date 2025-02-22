@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.ticker import PercentFormatter
 import gc
+import json
 
 from sklearn.model_selection import train_test_split
 
@@ -18,6 +19,23 @@ def create_dataset(model, dataset):
     del datasetter
     gc.collect()
 
+class Datacreator():
+    def __init__(self, dataset_name):
+        self.filename = dataset_name + ".jsonl"
+        with open(self.filename, "a") as file:
+            while True:
+                user_input = input("Input: ")
+                if user_input.lower() == "exit":
+                    break
+
+                user_output = input("Output: ")
+                if user_output.lower() == "exit":
+                    break
+
+                entry = {"input": user_input, "output": user_output}
+                file.write(json.dumps(entry) + "\n")
+
+        print(f"Data saved to {self.filename}")
 
 class Datasetter():
     def __init__(self, model, dataset):
