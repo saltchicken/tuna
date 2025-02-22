@@ -1,29 +1,14 @@
-import requests
 import argparse
-import json
-import gc
 from datetime import datetime
+import gc
+import json
+import requests
+from .datasetting import create_dataset
+from .ollama import ollama_interaction
+from .train import Model, Trainer
+
 def generate_timestamp_name():
     return datetime.now().strftime("%Y%m%d-%H%M%S")
-
-from .train import Model, Trainer
-from .datasetting import create_dataset
-
-
-# 4bit pre quantized models we support for 4x faster downloading + no OOMs.
-fourbit_models = [
-    "unsloth/mistral-7b-v0.3-bnb-4bit",      # New Mistral v3 2x faster!
-    "unsloth/mistral-7b-instruct-v0.3-bnb-4bit",
-    "unsloth/llama-3-8b-bnb-4bit",           # Llama-3 15 trillion tokens model 2x faster!
-    "unsloth/llama-3-8b-Instruct-bnb-4bit",
-    "unsloth/llama-3-70b-bnb-4bit",
-    "unsloth/Phi-3-mini-4k-instruct",        # Phi-3 2x faster!
-    "unsloth/Phi-3-medium-4k-instruct",
-    "unsloth/mistral-7b-bnb-4bit",
-    "unsloth/gemma-7b-bnb-4bit",             # Gemma 2.2x faster!
-] # More models at https://huggingface.co/unsloth
-
-
 
 def run_dataset(model_name, max_steps, dataset, output, conversation_extension, num_train_epochs):
     model = Model(model_name = model_name, inference = False)
@@ -48,64 +33,6 @@ def run_dataset(model_name, max_steps, dataset, output, conversation_extension, 
     gc.collect()
     return model_output_name
 
-def ollama_interaction(model_file):
-    import subprocess
-    subprocess.run(["ollama", "create", "test", "-f", model_file], check=True)
-
-
-    print("Ollama is running. Type /bye to exit.")
-    while True:
-        user_input = input(">> ")
-        if user_input.strip().lower() == "/bye":
-            break
-        # query = query_ollama("test", user_input)
-        # print(query)
-        stream_ollama("test", user_input)
-
-    subprocess.run(["ollama", "rm", "test"], check=True)
-
-    print("Ollama session ended. Continuing with the script...")
-
-def stream_ollama(model, prompt):
-    url = "http://localhost:11434/api/generate"
-    headers = {"Content-Type": "application/json"}
-    data = {
-        "model": model,
-        "prompt": prompt,
-        "stream": True
-    }
-
-    with requests.post(url, headers=headers, data=json.dumps(data), stream=True) as response:
-        for line in response.iter_lines():
-            if line:
-                print(json.loads(line)["response"], end="", flush=True)
-        print("\n")
-
-def query_ollama(model, prompt):
-    url = "http://localhost:11434/api/generate"
-    headers = {"Content-Type": "application/json"}
-    data = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False
-    }
-
-    response = requests.post(url, headers=headers, data=json.dumps(data))
-
-    if response.status_code == 200:
-        return response.json()["response"]
-    else:
-        return f"Error: {response.status_code}, {response.text}"
-
-# Example usage
-# model_name = "mistral"  # Change this to the model you have installed
-# prompt_text = "Tell me a joke."
-# response = query_ollama(model_name, prompt_text)
-# print(response)
-
-
-
-
 def main():
     parser = argparse.ArgumentParser(description="Run training")
     subparsers = parser.add_subparsers(dest="command")
@@ -126,7 +53,6 @@ def main():
     args = parser.parse_args()
 
     if args.command == "train":
-
         output_model_name = run_dataset(args.model, args.max_steps, args.dataset, args.output, args.conversation_extension, args.num_train_epochs)
         if args.ollama:
             ollama_interaction(output_model_name + "/Modelfile")
