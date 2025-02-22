@@ -20,8 +20,8 @@ def create_dataset(model):
 
 
 class Datasetter():
-    def __init__(self, model):
-        self.dataset = load_dataset("virattt/financial-qa-10k")
+    def __init__(self, model, dataset):
+        self.dataset = load_dataset(dataset)
         self.model = Model(model)
         self.df = self.create_dataframe()
         # TODO Add this check
