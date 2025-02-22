@@ -47,7 +47,7 @@ def main():
 
     dataset_parser = subparsers.add_parser("dataset", help="Run the dataset")
     dataset_parser.add_argument("--model", type=str, default="unsloth/llama-3-8b-Instruct-bnb-4bit", help="Model name to use for training. Default is model_name='unsloth/llama-3-8b-bnb-4bit'")
-    dataset_parser.add_argument("--dataset", type=str, default="viraattt/financial-qa-10k", help="Dataset to use for training. Default is dataset='viraattt/financial-qa-10k'")
+    dataset_parser.add_argument("--dataset", type=str, default="virattt/financial-qa-10k", help="Dataset to use for training. Default is dataset='viraattt/financial-qa-10k'")
 
     args = parser.parse_args()
 
