@@ -1,16 +1,11 @@
-from unsloth import FastLanguageModel
 import torch
-from datasets import load_dataset
-from unsloth import to_sharegpt
-from unsloth import standardize_sharegpt
-from unsloth import apply_chat_template
-from trl import SFTTrainer, SFTConfig
-from transformers import TrainingArguments
 import json
-from unsloth import is_bfloat16_supported
-from transformers import TextStreamer
+from textwrap import dedent
+from datasets import load_dataset
+from unsloth import FastLanguageModel, to_sharegpt, standardize_sharegpt, apply_chat_template, is_bfloat16_supported
+from trl import SFTTrainer, SFTConfig
+from transformers import TextStreamer, TrainingArguments
 
-PAD_TOKEN = "<|pad|>"
 
 class Model():
     def __init__(self, model_name, inference=False, max_seq_length=2048, dtype=None, load_in_4bit=True):
@@ -29,6 +24,7 @@ class Model():
         # # TODO: Is this pad_token needed. Should a EOS be added
         # ### CUSTOM
         # print("Adding pad_token")
+        # PAD_TOKEN = "<|pad|>"
         # self.tokenizer.add_special_tokens({"pad_token": PAD_TOKEN})
         # self.tokenizer.padding_side = "right"
         # self.model.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=8)
@@ -69,13 +65,13 @@ class Model():
         # ### Response:
         # {OUTPUT}"""
 
-        self.tokenizer.chat_template = """{SYSTEM}
+        self.tokenizer.chat_template = dedent("""{SYSTEM}
 
         ### Instruction:
         {INPUT}
 
         ### Response:
-        {OUTPUT}"""
+        {OUTPUT}""")
 
     def set_model_for_inference(self):
         if not self.inference:
@@ -86,6 +82,7 @@ class Model():
             print("Model already set for inference")
 
     def run_inference(self, content):
+        print("hello there this is a test")
         if not self.inference:
             print(f"Model not loaded for inference")
             return
@@ -143,7 +140,7 @@ class Trainer():
             self.dataset,
             merged_prompt="{question}[[\nInformation:\n{context}]]",
             output_column_name="answer",
-            conversation_extension=3,  # Select more to handle longer conversations
+            conversation_extension=conversation_extension,  # Select more to handle longer conversations
         )
     def standardize_dataset(self):
         self.dataset = standardize_sharegpt(self.dataset)
