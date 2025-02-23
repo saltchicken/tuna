@@ -65,13 +65,13 @@ class Model():
         # ### Response:
         # {OUTPUT}"""
 
-        self.tokenizer.chat_template = dedent("""{SYSTEM}
+        self.tokenizer.chat_template = """{SYSTEM}
 
-        ### Instruction:
-        {INPUT}
+### Instruction:
+{INPUT}
 
-        ### Response:
-        {OUTPUT}""")
+### Response:
+{OUTPUT}"""
 
     def set_model_for_inference(self):
         if not self.inference:
