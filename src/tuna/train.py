@@ -1,6 +1,5 @@
 import torch
 import json
-from textwrap import dedent
 from datasets import load_dataset
 from unsloth import FastLanguageModel, to_sharegpt, standardize_sharegpt, apply_chat_template, is_bfloat16_supported
 from trl import SFTTrainer, SFTConfig
@@ -151,7 +150,7 @@ class Trainer():
             self.dataset,
             tokenizer=model.tokenizer,
             chat_template=model.tokenizer.chat_template,
-            # default_system_message = "You are a helpful assistant", << [OPTIONAL]
+            default_system_message = "You are a helpful assistant", # [OPTIONAL]
         )
 
     def create_trainer(self, model, max_steps=60, num_train_epochs=None):
